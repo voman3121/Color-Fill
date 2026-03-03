@@ -1,39 +1,60 @@
-package swingprac;
+/*
+ * GameController
+ * ---------------
+ * Acts as the core logic handler of the Flood Fill game.
+ *
+ * Responsibilities:
+ * - Manages turn flow between Human and CPU
+ * - Handles flood fill expansion using BFS
+ * - Maintains score and win conditions
+ * - Controls timer-based turn restriction
+ * - Implements Greedy AI (CPU move selection)
+ * - Implements Minimax-based Hint System (Review 2 enhancement)
+ *
+ * Design Choice:
+ * UI and game logic are separated — UI handles display,
+ * GameController handles decision-making and state updates.
+ */
 
+
+package swingprac;
 import java.util.*;
 import javax.swing.*;
 import java.awt.*;
+import java.lang.module.ModuleDescriptor.Provides;
 
+import javax.swing.Timer;
+import java.util.List;
+import java.util.Queue;
+import java.util.stream.Gatherer.Integrator.Greedy;
+
+// Constructor connects UI with logic and initializes listeners
+// We keep all game control centralized here..
 public class GameController {
-	// DP memoization table for hint computation
-	private Map<String, Integer> dpMemo = new HashMap<>();
 	private ColorFillUI ui;
 	private Grid grid;
 	private Set<Cell> humanCells = new HashSet<>();
 	private Set<Cell> CPUCells = new HashSet<>();
 	private boolean humanTurn = true;
 	private boolean gameOver = false;
-
 	// Timer fields
-	private javax.swing.Timer turnTimer;
-	private int timeLeft = 15;
-
-	// Score fields updating
+	private Timer turnTimer;
+	private int timeLeft = 10;
+	// updating Score fields 
 	private void updateScores() {
 		ui.updateScores(humanCells.size(), CPUCells.size());
 	}
-
 	public GameController(ColorFillUI ui) {
 		this.ui = ui;
 		this.grid = ui.getGrid();
+		// Attach all UI listeners
 		difficultyListener();
 		colorListener();
 		initializeGame();
 		newGameListener();
 		resetGameListener();
-		hintListener();
+		helpListener();
 	}
-
 	private void difficultyListener() {
 		ui.getDifficulties().addActionListener(e -> {
 			int difficulty = ui.getDifficulties().getSelectedIndex() + 1;
@@ -51,13 +72,16 @@ public class GameController {
 			}
 			ui.rebuildGrid(rows, cols, difficulty);
 			grid = ui.getGrid();
+			// Start the first game
 			initializeGame();
 			gameOver = false;
 			colorListener();
 		});
 	}
-
+	// Sets up initial ownership and starts timer
+	// Called when game starts or resets
 	private void initializeGame() {
+		// Clear any previous state
 		humanCells.clear();
 		CPUCells.clear();
 		Cell[][] cells = grid.getCells();
@@ -65,12 +89,11 @@ public class GameController {
 		int cols = rows;
 		humanCells.add(cells[0][0]);
 		CPUCells.add(cells[rows - 1][cols - 1]);
-
 		updateScores();
 
-		// Initialize timer if not already
-		if (turnTimer == null) {
-			turnTimer = new javax.swing.Timer(1000, e -> {
+		// Create timer only once
+			if (turnTimer == null) {
+			turnTimer = new Timer(1000, e -> {
 				timeLeft--;
 				ui.updateTimer(timeLeft);
 				if (timeLeft <= 0) {
@@ -83,19 +106,16 @@ public class GameController {
 		}
 		startTurnTimer();
 	}
-
 	private void startTurnTimer() {
 		timeLeft = 15;
 		ui.updateTimer(timeLeft);
 		if (turnTimer != null)
 			turnTimer.restart();
 	}
-
 	private void stopTurnTimer() {
 		if (turnTimer != null)
 			turnTimer.stop();
 	}
-
 	private void colorListener() {
 		for (JButton colorBtn : ui.getColorButtons()) {
 			colorBtn.addActionListener(e -> {
@@ -112,7 +132,6 @@ public class GameController {
 			});
 		}
 	}
-
 	private void humanTurn(Color chosenColor) {
 		stopTurnTimer();
 		fillCells(humanCells, chosenColor, Owner.HUMAN);
@@ -128,12 +147,14 @@ public class GameController {
 		cpuTurn();
 	}
 
+// 	 Expands the player's territory by capturing adjacent cells of the selected color.
 	private void fillCells(Set<Cell> cells, Color chosenColor, Owner owner) {
 		Queue<Cell> queue = new LinkedList<>(cells);
 		Set<Cell> visited = new HashSet<>(cells);
 		while (!queue.isEmpty()) {
 			Cell current = queue.poll();
 			current.color = chosenColor;
+			    // Expand only into neutral cells with matching color
 			for (Cell neighbour : current.neighbours) {
 				if (!visited.contains(neighbour) && neighbour.owner == Owner.NONE
 						&& neighbour.color.equals(chosenColor)) {
@@ -145,7 +166,6 @@ public class GameController {
 			}
 		}
 	}
-
 	private Owner checkWin() {
 		int totalCells = (int) Math.pow(grid.getCells().length, 2);
 		if (humanCells.size() >= totalCells / 2) {
@@ -156,14 +176,15 @@ public class GameController {
 		return Owner.NONE;
 	}
 
+	// Calculates how many cells CPU would gain if it chooses a particular color.
 	private int gain(Color color) {
 		Queue<Cell> queue = new LinkedList<>(CPUCells);
 		Set<Cell> visited = new HashSet<>(CPUCells);
 		int gain = 0;
-		while (!queue.isEmpty()) {
+		while(!queue.isEmpty()) {
 			Cell current = queue.poll();
-			for (Cell neighbour : current.neighbours) {
-				if (!visited.contains(neighbour) && neighbour.owner == Owner.NONE && neighbour.color.equals(color)) {
+			for(Cell neighbour: current.neighbours) {
+				if(!visited.contains(neighbour) && neighbour.owner==Owner.NONE && neighbour.color.equals(color)) {
 					queue.add(neighbour);
 					visited.add(neighbour);
 					gain++;
@@ -173,74 +194,33 @@ public class GameController {
 		return gain;
 	}
 
+	// Greedy CPU strategy: Selects the color that results in maximum immediate gain.
 	private Color bestColor() {
-		java.util.List<ColorGain> gains = new ArrayList<>();
+		Color bestColor = null;
+		int maxGain = -1;
 		Color humanColor = humanCells.iterator().next().color;
 		Color CPUColor = CPUCells.iterator().next().color;
-		for (Color color : grid.getColors()) {
-			if (color.equals(humanColor) || color.equals(CPUColor)) {
+		for(Color color: grid.getColors()) {
+			if(color.equals(humanColor) || color.equals(CPUColor)) {
 				continue;
 			}
-			gains.add(new ColorGain(color, gain(color)));
-		}
-
-		// Sort using Merge Sort (Divide and Conquer)
-		gains = mergeSort(gains);
-
-		if (gains.isEmpty())
-			return null;
-		// Return the color with max gain (first element after sort if we sort desc)
-		return gains.get(0).gain > 0 ? gains.get(0).color : null;
-	}
-
-	// Helper class for sorting
-	private class ColorGain {
-		Color color;
-		int gain;
-
-		public ColorGain(Color color, int gain) {
-			this.color = color;
-			this.gain = gain;
-		}
-	}
-
-	// Merge Sort Implementation
-	private java.util.List<ColorGain> mergeSort(java.util.List<ColorGain> list) {
-		if (list.size() <= 1)
-			return list;
-		int mid = list.size() / 2;
-		java.util.List<ColorGain> left = mergeSort(list.subList(0, mid));
-		java.util.List<ColorGain> right = mergeSort(list.subList(mid, list.size()));
-		return merge(left, right);
-	}
-
-	private java.util.List<ColorGain> merge(java.util.List<ColorGain> left, java.util.List<ColorGain> right) {
-		java.util.List<ColorGain> result = new ArrayList<>();
-		int i = 0, j = 0;
-		while (i < left.size() && j < right.size()) {
-			// Sort in descending order of gain
-			if (left.get(i).gain >= right.get(j).gain) {
-				result.add(left.get(i++));
-			} else {
-				result.add(right.get(j++));
+			int gain = gain(color);
+			if(gain>maxGain) {
+				maxGain = gain;
+				bestColor = color;
 			}
 		}
-		while (i < left.size())
-			result.add(left.get(i++));
-		while (j < right.size())
-			result.add(right.get(j++));
-		return result;
+		return bestColor;
 	}
-
 	private void cpuTurn() {
 		Color chosenColor = bestColor();
-		if (chosenColor != null) {
-			fillCells(CPUCells, chosenColor, Owner.CPU);
+		if(chosenColor!=null) {
+			fillCells(CPUCells,chosenColor,Owner.CPU);
 			ui.updateGridUI(grid.getCells());
+			updateScores();
 		}
-		updateScores();
 		Owner winner = checkWin();
-		if (winner != Owner.NONE) {
+		if(winner!=Owner.NONE) {
 			ui.displayWinner(winner);
 			gameOver = true;
 			return;
@@ -248,7 +228,6 @@ public class GameController {
 		humanTurn = true;
 		startTurnTimer();
 	}
-
 	private void newGameListener() {
 		ui.getNewGameBtn().addActionListener(e -> {
 			int difficulty = ui.getDifficulties().getSelectedIndex() + 1;
@@ -269,14 +248,13 @@ public class GameController {
 			newGame();
 		});
 	}
-
 	private void newGame() {
 		gameOver = false;
 		humanTurn = true;
 		initializeGame();
 		colorListener();
+		helpListener();
 	}
-
 	private void resetGameListener() {
 		ui.getResetBtn().addActionListener(e -> {
 			ui.resetGridUI(grid.getCells());
@@ -284,170 +262,118 @@ public class GameController {
 			newGame();
 		});
 	}
+	// ---- MINIMAX ----
+// Provides strategic hint suggestions for the human.
+// Depth-limited recursive adversarial search.
 
-	// ========================
-	// DP-Based Hint System
-	// ========================
-
-	private void hintListener() {
-		ui.getHintBtn().addActionListener(e -> {
-			if (!humanTurn || gameOver) {
-				return;
-			}
-			Color bestHint = computeHintDP();
-			if (bestHint != null) {
-				ui.highlightHint(bestHint);
-			}
-		});
+	private void helpListener() {
+	    ui.getHelpBtn().addActionListener(e -> {
+	        if (!humanTurn || gameOver) return;
+	        Color suggested = minimaxBestColor(humanCells, CPUCells, 3);
+	        ui.highlightSuggestedColor(suggested);
+	    });
 	}
+// Tries all possible colors and selects the one that maximizes the human's advantage.
+	private Color minimaxBestColor(Set<Cell> hCells, Set<Cell> cCells, int depth) {
+	    Color humanColor = hCells.iterator().next().color;
+	    Color cpuColor = cCells.iterator().next().color;
+	    Color bestColor = null;
+	    int bestScore = Integer.MIN_VALUE;
 
-	/**
-	 * Uses DP (Dynamic Programming) with memoization to find the best color
-	 * for the human player. Looks ahead up to 'depth' moves to maximize
-	 * the number of cells captured.
-	 */
-	private Color computeHintDP() {
-		dpMemo.clear();
-		Color humanColor = humanCells.iterator().next().color;
-		Color cpuColor = CPUCells.iterator().next().color;
-		Color[] colors = grid.getColors();
-		int bestGain = -1;
-		Color bestColor = null;
+	    for (Color color : grid.getColors()) {
+	        if (color.equals(humanColor) || color.equals(cpuColor)) continue;
 
-		// Determine DP look-ahead depth based on grid size
-		int gridSize = grid.getCells().length;
-		int depth = (gridSize <= 6) ? 3 : 2;
+	        Set<Cell> newHuman = new HashSet<>(hCells);
+	        simulateFill(newHuman, color, Owner.HUMAN);
+	        int score = minimax(newHuman, cCells, depth - 1, false);
 
-		for (Color color : colors) {
-			if (color.equals(humanColor) || color.equals(cpuColor)) {
-				continue;
-			}
-			int totalGain = dpLookAhead(color, depth);
-			if (totalGain > bestGain) {
-				bestGain = totalGain;
-				bestColor = color;
-			}
-		}
-		return bestColor;
+	        if (score > bestScore) {
+	            bestScore = score;
+	            bestColor = color;
+	        }
+	    }
+	    return bestColor;
 	}
+//  Minimax recursive evaluation.
+//  
+//   isMaximizing = true  -> Human turn
+//   isMaximizing = false -> CPU turn
+	private int minimax(Set<Cell> hCells, Set<Cell> cCells, int depth, boolean isMaximizing) {
 
-	/**
-	 * DP look-ahead: simulates choosing 'firstColor' now, then recursively
-	 * finds the best subsequent moves up to 'depth' levels.
-	 * Uses memoization based on the set of owned cell positions.
-	 */
-	private int dpLookAhead(Color firstColor, int depth) {
-		// Simulate choosing firstColor for human
-		Set<Cell> simHumanCells = new HashSet<>(humanCells);
-		int immediateGain = simulateFill(simHumanCells, firstColor);
+    // Terminal condition: someone already won
+    int totalCells = grid.getCells().length * grid.getCells().length;
+    if (hCells.size() >= totalCells / 2) return 1000;   // strong win
+    if (cCells.size() >= totalCells / 2) return -1000;  // strong loss
 
-		if (depth <= 1) {
-			return immediateGain;
-		}
+    // Depth limit
+    if (depth == 0) return hCells.size() - cCells.size();
 
-		// Build memoization key from simulated cell positions
-		String memoKey = buildMemoKey(simHumanCells, depth - 1);
-		if (dpMemo.containsKey(memoKey)) {
-			return immediateGain + dpMemo.get(memoKey);
-		}
+    Color humanColor = hCells.isEmpty() ? null : hCells.iterator().next().color;
+    Color cpuColor   = cCells.isEmpty() ? null : cCells.iterator().next().color;
 
-		// DP recurrence: try all valid next colors and pick the max
-		Color simHumanColor = firstColor;
-		Color cpuColor = CPUCells.iterator().next().color;
-		int bestFutureGain = 0;
+    boolean movePossible = false;
 
-		for (Color nextColor : grid.getColors()) {
-			if (nextColor.equals(simHumanColor) || nextColor.equals(cpuColor)) {
-				continue;
-			}
-			Set<Cell> nextSimCells = new HashSet<>(simHumanCells);
-			int futureGain = simulateFill(nextSimCells, nextColor);
-			if (depth > 2) {
-				// Continue DP recursion
-				String nextKey = buildMemoKey(nextSimCells, depth - 2);
-				if (dpMemo.containsKey(nextKey)) {
-					futureGain += dpMemo.get(nextKey);
-				} else {
-					int deepGain = dpRecurse(nextSimCells, nextColor, depth - 2);
-					dpMemo.put(nextKey, deepGain);
-					futureGain += deepGain;
-				}
-			}
-			bestFutureGain = Math.max(bestFutureGain, futureGain);
-		}
+    if (isMaximizing) {
+        int best = Integer.MIN_VALUE;
 
-		dpMemo.put(memoKey, bestFutureGain);
-		return immediateGain + bestFutureGain;
-	}
+        for (Color color : grid.getColors()) {
+            if (color.equals(humanColor) || color.equals(cpuColor)) continue;
 
-	/**
-	 * DP recursive helper with memoization for deeper look-ahead.
-	 */
-	private int dpRecurse(Set<Cell> currentCells, Color currentColor, int depth) {
-		if (depth <= 0) {
-			return 0;
-		}
+            Set<Cell> newHuman = new HashSet<>(hCells);
+            int before = newHuman.size();
+            simulateFill(newHuman, color, Owner.HUMAN);
 
-		Color cpuColor = CPUCells.iterator().next().color;
-		int bestGain = 0;
+            // Skip if no expansion
+            if (newHuman.size() == before) continue;
 
-		for (Color nextColor : grid.getColors()) {
-			if (nextColor.equals(currentColor) || nextColor.equals(cpuColor)) {
-				continue;
-			}
-			Set<Cell> simCells = new HashSet<>(currentCells);
-			int gain = simulateFill(simCells, nextColor);
+            movePossible = true;
+            best = Math.max(best, minimax(newHuman, cCells, depth - 1, false));
+        }
 
-			if (depth > 1) {
-				String key = buildMemoKey(simCells, depth - 1);
-				if (dpMemo.containsKey(key)) {
-					gain += dpMemo.get(key);
-				} else {
-					int deeper = dpRecurse(simCells, nextColor, depth - 1);
-					dpMemo.put(key, deeper);
-					gain += deeper;
-				}
-			}
-			bestGain = Math.max(bestGain, gain);
-		}
-		return bestGain;
-	}
+        // If no move possible, return evaluation
+        if (!movePossible) return hCells.size() - cCells.size();
 
-	/**
-	 * Simulates a fill operation on a copy of cells WITHOUT modifying the actual
-	 * game state.
-	 * Returns the number of new cells gained.
-	 */
-	private int simulateFill(Set<Cell> cells, Color chosenColor) {
-		Queue<Cell> queue = new LinkedList<>(cells);
-		Set<Cell> visited = new HashSet<>(cells);
-		int gained = 0;
-		while (!queue.isEmpty()) {
-			Cell current = queue.poll();
-			for (Cell neighbour : current.neighbours) {
-				if (!visited.contains(neighbour) && neighbour.owner == Owner.NONE
-						&& neighbour.color.equals(chosenColor)) {
-					visited.add(neighbour);
-					queue.add(neighbour);
-					cells.add(neighbour);
-					gained++;
-				}
-			}
-		}
-		return gained;
-	}
+        return best;
 
-	/**
-	 * Builds a unique memoization key from the set of cell positions and remaining
-	 * depth.
-	 * Uses a sorted representation of cell row-col pairs for consistency.
-	 */
-	private String buildMemoKey(Set<Cell> cells, int depth) {
-		java.util.List<String> positions = new ArrayList<>();
-		for (Cell c : cells) {
-			positions.add(c.getRow() + "," + c.getCol());
-		}
-		Collections.sort(positions);
-		return positions.toString() + ":" + depth;
+    } else {
+        int best = Integer.MAX_VALUE;
+
+        for (Color color : grid.getColors()) {
+            if (color.equals(humanColor) || color.equals(cpuColor)) continue;
+
+            Set<Cell> newCPU = new HashSet<>(cCells);
+            int before = newCPU.size();
+            simulateFill(newCPU, color, Owner.CPU);
+
+            if (newCPU.size() == before) continue;
+
+            movePossible = true;
+            best = Math.min(best, minimax(hCells, newCPU, depth - 1, true));
+        }
+
+        if (!movePossible) return hCells.size() - cCells.size();
+
+        return best;
+    }
+}
+
+
+// Simulates flood fill on a COPY of the player's cell set.
+	private void simulateFill(Set<Cell> cells, Color chosenColor, Owner owner) {
+	    Queue<Cell> queue = new LinkedList<>(cells);
+	    Set<Cell> visited = new HashSet<>(cells);
+	   
+	    while (!queue.isEmpty()) {
+	        Cell current = queue.poll();
+	        for (Cell neighbour : current.neighbours) {
+	            if (!visited.contains(neighbour)
+	                    && neighbour.owner == Owner.NONE
+	                    && neighbour.color.equals(chosenColor)) {
+	                visited.add(neighbour);
+	                queue.add(neighbour);
+	                cells.add(neighbour);
+	            }
+	        }
+	    }
 	}
 }

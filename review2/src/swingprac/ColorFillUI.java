@@ -1,5 +1,18 @@
-package swingprac;
+/*
+ * ColorFillUI
+ * -----------
+ * Handles everything related to the visual interface.
+ * This class builds the frame, grid, buttons, and top control panel.
+ * It does not contain game logic — it only reflects the current state.
+ *
+ * Review 2 additions:
+ * - Score display (Human vs CPU)
+ * - Turn timer display
+ * - Help button for Minimax suggestion
+ * - Highlight system for suggested move
+ */
 
+package swingprac;
 import javax.swing.*;
 import java.awt.*;
 
@@ -11,19 +24,19 @@ public class ColorFillUI {
 	private JComboBox<String> difficultyBox;
 	private JButton newGameBtn;
 	private JButton resetBtn;
-	private JButton hintBtn;
 	private JButton[][] buttons;
 	private JButton[] colorButtons;
+	private JButton helpBtn;
+	private JButton lastHighlighted = null;
 	private Grid grid;
 
 	public ColorFillUI() {
 		// frame creation
 		frame = new JFrame("Color Fill");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.setSize(600, 600);
+		frame.setSize(650, 600);
 		frame.setLayout(new BorderLayout());
 		// default grid creation
-		// set difficulty to medium initially
 		int rows = 8;
 		int cols = 8;
 		// grid panel creation
@@ -35,6 +48,7 @@ public class ColorFillUI {
 		frame.add(optionsPanel, BorderLayout.NORTH);
 		frame.setVisible(true);
 	}
+	// Builds the grid visually
 
 	private void gridPanelCreate(int rows, int cols, int difficulty) {
 		gridPanel = new JPanel();
@@ -54,12 +68,14 @@ public class ColorFillUI {
 				gridPanel.add(button);
 			}
 		}
+			// Set starting positions
 		cells[0][0].owner = Owner.HUMAN;
 		buttons[0][0].setText("H");
 		cells[rows - 1][cols - 1].owner = Owner.CPU;
 		buttons[rows - 1][cols - 1].setText("C");
 	}
 
+	// Creates selectable color buttons
 	private void colorPanelCreate() {
 		colorPanel = new JPanel();
 		Color[] colors = grid.getColors();
@@ -76,6 +92,7 @@ public class ColorFillUI {
 		}
 	}
 
+	// Creates difficulty dropdown + control buttons + Review 2 elements
 	private void optionsPanelCreate() {
 		optionsPanel = new JPanel();
 		String[] difficulties = { "Easy", "Medium", "Difficult" };
@@ -85,16 +102,14 @@ public class ColorFillUI {
 		optionsPanel.add(difficultyBox);
 		newGameBtn = new JButton("New Game");
 		resetBtn = new JButton("Reset");
-		hintBtn = new JButton("💡 Hint");
-		hintBtn.setToolTipText("Get the best color suggestion using DP");
 		optionsPanel.add(newGameBtn);
 		optionsPanel.add(resetBtn);
-		optionsPanel.add(hintBtn);
 
 		// Initialize labels
 		humanScoreLabel = new JLabel("Human: 1");
 		cpuScoreLabel = new JLabel("CPU: 1");
-		timerLabel = new JLabel("Time: 15s");
+		timerLabel = new JLabel("Time: 10s");
+		helpBtn = new JButton("Help");
 
 		// Add some spacing
 		optionsPanel.add(Box.createHorizontalStrut(10));
@@ -103,6 +118,8 @@ public class ColorFillUI {
 		optionsPanel.add(cpuScoreLabel);
 		optionsPanel.add(Box.createHorizontalStrut(10));
 		optionsPanel.add(timerLabel);
+		optionsPanel.add(Box.createHorizontalStrut(10));
+		optionsPanel.add(helpBtn);
 	}
 
 	protected void rebuildGrid(int rows, int cols, int difficulty) {
@@ -116,6 +133,7 @@ public class ColorFillUI {
 		frame.repaint();
 	}
 
+	// Updates cell colors and ownership text
 	protected void updateGridUI(Cell[][] cells) {
 		for (int i = 0; i < cells.length; i++) {
 			for (int j = 0; j < cells.length; j++) {
@@ -138,6 +156,7 @@ public class ColorFillUI {
 		}
 	}
 
+	// Resets grid to initial state
 	protected void resetGridUI(Cell[][] cells) {
 		for (int i = 0; i < cells.length; i++) {
 			for (int j = 0; j < cells.length; j++) {
@@ -173,33 +192,6 @@ public class ColorFillUI {
 		return colorButtons;
 	}
 
-	public JButton getHintBtn() {
-		return hintBtn;
-	}
-
-	/**
-	 * Highlights the recommended color button with a distinctive gold border
-	 * that flashes for 2 seconds to guide the human player.
-	 */
-	public void highlightHint(Color hintColor) {
-		for (JButton colorBtn : colorButtons) {
-			if (colorBtn.getBackground().equals(hintColor)) {
-				// Save original border
-				javax.swing.border.Border originalBorder = colorBtn.getBorder();
-				// Set a thick gold border to highlight
-				colorBtn.setBorder(BorderFactory.createLineBorder(new Color(255, 215, 0), 4));
-				// Flash effect: restore after 2 seconds
-				javax.swing.Timer flashTimer = new javax.swing.Timer(2000, e -> {
-					colorBtn.setBorder(originalBorder);
-				});
-				flashTimer.setRepeats(false);
-				flashTimer.start();
-				break;
-			}
-		}
-	}
-
-	// New UI components for Review 2
 	private JLabel humanScoreLabel;
 	private JLabel cpuScoreLabel;
 	private JLabel timerLabel;
@@ -216,5 +208,26 @@ public class ColorFillUI {
 		} else {
 			timerLabel.setForeground(Color.BLACK);
 		}
+	}
+	
+	public JButton getHelpBtn() { return helpBtn; }
+
+	// Highlights suggested color from Minimax
+	public void highlightSuggestedColor(Color suggested) {
+	    clearHighlight(); // clear any previous
+	    for (JButton btn : colorButtons) {
+	        if (btn.getBackground().equals(suggested)) {
+	            btn.setBorder(BorderFactory.createLineBorder(Color.WHITE, 4));
+	            lastHighlighted = btn;
+	            break;
+	        }
+	    }
+	}
+
+	public void clearHighlight() {
+	    if (lastHighlighted != null) {
+	        lastHighlighted.setBorder(BorderFactory.createLineBorder(Color.black));
+	        lastHighlighted = null;
+	    }
 	}
 }

@@ -1,3 +1,10 @@
+/*
+ * Grid
+ * ----
+ * Responsible for creating and managing the game board.
+ * It initializes cells with random colors based on difficulty
+ * and connects each cell to its neighbouring cells.
+ */
 package swingprac;
 import java.util.*;
 import java.awt.Color;
@@ -10,6 +17,7 @@ public class Grid {
 		this.rows = rows;
 		this.cols = cols;
 		this.cells = new Cell[rows][cols];
+		// Set available colors based on difficulty
 		switch (difficulty) {
 		case 1:
 			colors = new Color[] {Color.red, Color.yellow, Color.green, Color.pink};
@@ -20,9 +28,11 @@ public class Grid {
 		case 3:
 			colors = new Color[] {Color.RED, Color.YELLOW, Color.GREEN, Color.PINK, Color.CYAN, Color.magenta, Color.orange};
 		}
-		initializeCells();
+		initializeCells(); 
 		connectCells();
 	}
+
+		// Assigns each cell a random color
 	private void initializeCells() {
 		for(int i=0;i<rows;i++) {
 			for(int j=0;j<cols;j++) {
@@ -30,6 +40,8 @@ public class Grid {
 			}
 		}
 	}
+
+		// Connects each cell to its up/down/left/right neighbours
 	private void connectCells() {
 		for(int i=0;i<rows;i++) {
 			for(int j=0;j<cols;j++) {
